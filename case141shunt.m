@@ -1,13 +1,4 @@
 function mpc = case141shunt
-%CASE141  Power flow data for 141 bus distribution system
-%    Please see CASEFORMAT for details on the case file format.
-%
-%    Data from ...
-%       H.M. Khodr, F.G. Olsina, P.M. De Oliveira-De Jesus, J.M. Yusta,
-%       Maximum savings approach for location and sizing of capacitors in
-%       distribution systems, Electric Power Systems Research, Volume 78,
-%       Issue 7, July 2008, Pages 1192-1203
-%       https://doi.org/10.1016/j.epsr.2007.10.002
 
 %% MATPOWER Case Format : Version 2
 mpc.version = '2';
@@ -311,42 +302,13 @@ mpc.branch = [
   30 140  0.00333760  0.00242442  0.00000000  999  999  999  0  0  1  -360  360
   31 141  0.00375561  0.00266236  0.00000000  999  999  999  0  0  1  -360  360
 ];
-%% DG
-%Bus	ActivePower Loss (MW)	ReactivePower (MVar)
-% mpc.DGdata = [
-%     20	0.05  0.6
-%     33  0.05  0.5
-%     53  0.05  0.05
-% ];
-% 
-% DGdata = mpc.DGdata;
-% ConsiderDG = 1; %是否计及分布式电源：1是；0否
-% switch ConsiderDG
-%     case 1
-%         for i=1:length(DGdata(:,1))
-%             mpc.bus(DGdata(i,1),3) = mpc.bus(DGdata(i,1),3)-0.1; %有功功率
-% %             ReactivePower =  DGdata(i,3);                          %功率因素
-% %             mpc.bus(DGdata(i,1),4) = mpc.bus(DGdata(i,1),4)-ReactivePower;  %无功功率
-%         end
-%     case 0
-% end
-% %% Cap
-% %Bus	ActivePower Loss (MW)	ReactivePower (MVar)
-% mpc.CAPdata = [
-%     6	0.1	 0.02
-%     24  0.1  0.03
-%     29  0.1  0.05
-% ];
-% 
-% CAPdata = mpc.CAPdata;
-% ConsiderCAP = 1; %是否计及分布式电源：1是；0否
-% switch ConsiderCAP
-%     case 1
-%         for i=1:length(CAPdata(:,1))
-%             ActivePower = CAPdata(i,2);                 %有功功率
-%             mpc.bus(CAPdata(i,1),3) = mpc.bus(CAPdata(i,1),3)+ActivePower; %有功功率
-% %             ReactivePower =  CAPdata(i,3);                          %功率因素
-% %             mpc.bus(CAPdata(i,1),4) = mpc.bus(CAPdata(i,1),4)-ReactivePower;  %无功功率
-%         end
-%     case 0
-% end
+%% generator cost data
+%	1	startup	shutdown	n	x1	y1	...	xn	yn
+%	2	startup	shutdown	n	c(n-1)	...	c0
+mpc.gencost = [
+	2	0	0	3	0	20	0;
+];
+%% grid
+%Bus	ActivePower (MW)	Power factor (lag)
+mpc.Grid = [
+    1	0.3	 0.9];
