@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 from sklearn.inspection import PartialDependenceDisplay
 import shap
 import shapiq
-from power_flow_utils import auto_disruption
 from tqdm import tqdm
 
 # 加载网络并运行电力流
@@ -195,16 +194,33 @@ for i in range(n_bus):
     model.addConstr(xv_bus[i] <= 1.05 ** 2)
 
 # 设置参数并优化
-model.setParam('OutputFlag', 1)  # 开启日志输出
-model.setParam('LogToConsole', 1)  # 控制台输出
-model.setParam('LogFile', 'gurobi.log')  # 日志保存到 gurobi.log 文件
-model.setParam('DisplayInterval', 5)  # 每 5 秒更新一次日志
+model.setParam('OutputFlag', 1)
 model.setParam('TimeLimit', 60)
 model.setParam('MIPFocus', 1)
 start_time = time.time()
 model.optimize()
 end_time = time.time()
 optimization_time = end_time - start_time
+
+# 封装调整逻辑到 Pandapower
+def auto_disruption(net, xv_bus, xh_bra, xp_fbus, xq_fbus, Sb, Ub, Ib):
+    h_adjusted = np.zeros(n_bra)
+    for i in range(len(net.bus)):
+        v_opt = xv_bus[i].X ** 0.5
+        adjustment = np.random.uniform(0.0, 0.001) * np.random.choice([-1, 1])
+        net.res_bus['vm_pu'].iloc[i] = v_opt * (1 + adjustment)
+    for i in range(len(net.line)):
+        fbus = int(net.line['from_bus'].iloc[i])
+        i_opt_ka = (xh_bra[i].X * Sb / (Ub ** 2)) ** 0.5
+        i_opt_pu = i_opt_ka / Ib
+        adjustment = np.random.uniform(0.0, 0.007) * np.random.choice([-1, 1])
+        i_pp_pu_adjusted = i_opt_pu * (1 + adjustment)
+        net.res_line['i_ka'].iloc[i] = i_pp_pu_adjusted * Ib
+        v = xv_bus[fbus].X
+        p = xp_fbus[i].X
+        q = xq_fbus[i].X
+        h_adjusted[i] = (p ** 2 + q ** 2) / v
+    return h_adjusted
 
 # 检查优化结果并计算误差
 if model.status == GRB.INFEASIBLE:
@@ -220,7 +236,7 @@ else:
         h_opt = xh_bra[i].X
         print(f"Line {i}: Predicted h = {h_pred:.6f}, Optimized h = {h_opt:.6f}, Error = {abs(h_pred - h_opt):.6f}")
 
-    h_adjusted, vm_pu, i_ka = auto_disruption(net, xv_bus, xh_bra, xp_fbus, xq_fbus, Sb, Ub, Ib)
+    h_adjusted = auto_disruption(net, xv_bus, xh_bra, xp_fbus, xq_fbus, Sb, Ub, Ib)
 
     print("\n=== Voltage Magnitude Comparison ===")
     voltage_errors = []
@@ -265,6 +281,20 @@ else:
     avg_error_socp_opt = np.mean(error_socp_opt)
     print("\n=== SOCP Error Summary (Optimized h) ===")
     print(f"Max SOCP Error (Optimized): {max_error_socp_opt:.8f}, Average SOCP Error (Optimized): {avg_error_socp_opt:.8f}")
+
+    error_socp_adj = []
+    for i in range(n_bra):
+        v = xv_bus[int(net.line['from_bus'].iloc[i])].X
+        p = xp_fbus[i].X
+        q = xq_fbus[i].X
+        h = h_adjusted[i]
+        socp_error = abs(h * v - (p ** 2 + q ** 2))
+        error_socp_adj.append(socp_error)
+
+    max_error_socp_adj = max(error_socp_adj)
+    avg_error_socp_adj = np.mean(error_socp_adj)
+    print("\n=== SOCP Error Summary (Adjusted h) ===")
+    print(f"Max SOCP Error (Adjusted): {max_error_socp_adj:.8f}, Average SOCP Error (Adjusted): {avg_error_socp_adj:.8f}")
 
     print(f"\n=== Optimization Time ===")
     print(f"Optimization Time: {optimization_time:.4f} seconds")
